@@ -7,79 +7,49 @@ import torchvision
 from torch import nn, optim
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
-from torchvision import datasets, transforms
+from torchvision import datasets, transforms, models
 from tqdm import tqdm
 import torch.optim as optm
 
 from src.GoogleNet.model import *
-
+from src.GoogleNet.dataset import getData_flowers
 def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"using {device} device.")
     writer = SummaryWriter("../../logs_train")
-    data_transform = {
-        "train": transforms.Compose([transforms.RandomResizedCrop(224),
-                                     transforms.RandomHorizontalFlip(),
-                                     transforms.ToTensor(),
-                                     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]),
-        "val": transforms.Compose([transforms.Resize((224, 224)),  # cannot 224, must (224, 224)
-                                   transforms.ToTensor(),
-                                   transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])}
 
-    data_root = "../../data"  # get data root path
-    image_path = os.path.join(data_root, "flower_data")  # flower data set path
-    assert os.path.exists(image_path), "{} path does not exist.".format(image_path)
-    train_dataset = datasets.ImageFolder(root=os.path.join(image_path, "train"),
-                                         transform=data_transform["train"])
-    train_num = len(train_dataset)
+    # 是否要冻住模型的前面一些层
+    def set_parameter_requires_grad(model, feature_extracting):
+        if feature_extracting:
+            model = model
+            for param in model.parameters():
+                param.requires_grad = False
+    # 可以采取已经实现的预训练模型
+    def GoogLeNet_model(num_classes, feature_extract = False, use_pretrained=True):
+        model_ft = models.googlenet(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Sequential(nn.Linear(num_ftrs, num_classes))
+        return model_ft
 
-    # {'daisy':0, 'dandelion':1, 'roses':2, 'sunflower':3, 'tulips':4}
-    flower_list = train_dataset.class_to_idx
-    cla_dict = dict((val, key) for key, val in flower_list.items())
-    # write dict into json file
-    json_str = json.dumps(cla_dict, indent=2)
+    lr = 0.0002
+    epochs = 30
+    # weight_decay = 1e-3
 
-    print(json_str)
-    with open('class_indices.json', 'w') as json_file:
-        json_file.write(json_str)
-
-    batch_size = 32
-    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
-    print(f'Using {nw} dataloader workers every process')
-
-    train_loader = DataLoader(train_dataset,
-                              batch_size=batch_size, shuffle=True,
-                              num_workers=nw)
-
-    validate_dataset = datasets.ImageFolder(root=os.path.join(image_path, "val"),
-                                            transform=data_transform["val"])
-    val_num = len(validate_dataset)
-    validate_loader = DataLoader(validate_dataset,
-                                 batch_size=4, shuffle=False,
-                                 num_workers=nw)
-
-    print("using {} images for training, {} images for validation.".format(train_num,
-                                                                           val_num))
+    Recording_frequency = 30
+    save_path = '../../pth_save/GoogLeNet_FLOWER.pth'
+    model_name = "GoogLeNet_Flowers1"
+    train_loader,train_num,validate_loader,val_num = getData_flowers(32)
 
     net = GoogLeNet(num_classes=5)
-
     net.to(device)
     loss_function = nn.CrossEntropyLoss()
-    # pata = list(net.parameters())
-    optimizer = optim.Adam(net.parameters(), lr=0.0002)
+    optimizer = optim.Adam(net.parameters(), lr=lr)
 
-    epochs = 20
-    save_path = '../../pth_save/GoogLeNet_FLOWER.pth'
-    model_name = "GoogLeNet_FLOWER"
     best_acc = 0.0
-    # train_steps = len(train_loader)
-
     # 记录训练次数
     total_train_step = 0
-    # 记录测试次数
-    total_test_step = 0
     #多少个batch录入一次数据
-    Recording_frequency = 30
     for epoch in range(epochs):
         # train
         net.train()

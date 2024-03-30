@@ -1,9 +1,11 @@
 # 首先导入包
+import json
+
 import torch
 import pandas as pd
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
+from torchvision import transforms, datasets
 from PIL import Image
 import os
 import matplotlib.pyplot as plt
@@ -12,17 +14,7 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 import seaborn as sns
 
-# 导入标签信息，并做排序
-labels_dataframe = pd.read_csv('../../data/classify-leaves/train.csv')
-leaves_labels = sorted(list(set(labels_dataframe['label'])))
-n_classes = len(leaves_labels)
-# print(n_classes)
-# 把label转成对应的数字
-class_to_num = dict(zip(leaves_labels, range(n_classes)))
-# print(class_to_num)
-# 切换键值对，方便预测时候进行查找
-num_to_class = {v : k for k, v in class_to_num.items()}
-# print(num_to_class)
+
 
 class LeavesData(Dataset):
     def __init__(self, csv_path, file_path, mode='train', valid_ratio=0.2, trans = transforms.ToTensor()):
@@ -99,6 +91,61 @@ class LeavesData(Dataset):
     def __len__(self):
         return self.real_len
 
+
+def getData_flowers(batch_size = 32):
+    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])
+    # 定义data loader
+    train_loader = torch.utils.data.DataLoader(
+        dataset=train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=nw
+    )
+    val_loader = torch.utils.data.DataLoader(
+        dataset=val_dataset,
+        batch_size=8,
+        shuffle=False,
+        num_workers=nw
+    )
+    print("using {} images for training, {} images for validation.".format(len(train_dataset),
+                                                                           len(val_dataset)))
+    return train_loader,len(train_dataset), val_loader,len(val_dataset)
+
+# def getData(batch_size = 8):
+#     nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])
+#     # 定义data loader
+#     train_loader = torch.utils.data.DataLoader(
+#         dataset=train_dataset,
+#         batch_size=batch_size,
+#         shuffle=False,
+#         num_workers=nw
+#     )
+#     val_loader = torch.utils.data.DataLoader(
+#         dataset=val_dataset,
+#         batch_size=batch_size,
+#         shuffle=False,
+#         num_workers=nw
+#     )
+#     test_loader = torch.utils.data.DataLoader(
+#         dataset=test_dataset,
+#         batch_size=batch_size,
+#         shuffle=False,
+#         num_workers=nw
+#     )
+#     return train_loader,len(train_dataset), val_loader,len(val_dataset), test_loader,len(test_dataset)
+
+# 导入标签信息，并做排序
+labels_dataframe = pd.read_csv('../../data/classify-leaves/train.csv')
+leaves_labels = sorted(list(set(labels_dataframe['label'])))
+n_classes = len(leaves_labels)
+# print(n_classes)
+# 把label转成对应的数字
+class_to_num = dict(zip(leaves_labels, range(n_classes)))
+# print(class_to_num)
+# 切换键值对，方便预测时候进行查找
+num_to_class = {v : k for k, v in class_to_num.items()}
+# print(num_to_class)
+# leaves_data
 train_path = '../../data/classify-leaves/train.csv'
 test_path = '../../data/classify-leaves/test.csv'
 # csv文件中已经images的路径了，因此这里只到上一级目录
@@ -112,32 +159,26 @@ data_transform = {
         "val": transforms.Compose([transforms.Resize((224, 224)),  # cannot 224, must (224, 224)
                                    transforms.ToTensor(),
                                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])}
-train_dataset = LeavesData(train_path, img_path, mode='train',valid_ratio=0.2,trans=data_transform["train"])
-val_dataset = LeavesData(train_path, img_path, mode='valid',valid_ratio=0.2,trans=data_transform["val"])
-test_dataset = LeavesData(test_path, img_path, mode='test',valid_ratio=0.2,trans=data_transform["val"])
+# train_dataset = LeavesData(train_path, img_path, mode='train',valid_ratio=0.2,trans=data_transform["train"])
+# val_dataset = LeavesData(train_path, img_path, mode='valid',valid_ratio=0.2,trans=data_transform["val"])
+# test_dataset = LeavesData(test_path, img_path, mode='test',valid_ratio=0.2,trans=data_transform["val"])
 # print(train_dataset)
 # print(val_dataset)
 # print(test_dataset)
 
-def getData(batch_size = 8):
-    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])
-    # 定义data loader
-    train_loader = torch.utils.data.DataLoader(
-        dataset=train_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=nw
-    )
-    val_loader = torch.utils.data.DataLoader(
-        dataset=val_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=nw
-    )
-    test_loader = torch.utils.data.DataLoader(
-        dataset=test_dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=nw
-    )
-    return train_loader,len(train_dataset), val_loader,len(val_dataset), test_loader,len(test_dataset)
+# flowers_data
+data_root = "../../data/"  # get data root path
+image_path = os.path.join(data_root, "flower_data")  # flower data set path
+assert os.path.exists(image_path), "{} path does not exist.".format(image_path)
+train_dataset = datasets.ImageFolder(root=os.path.join(image_path, "train"),
+                                     transform=data_transform["train"])
+# {'daisy':0, 'dandelion':1, 'roses':2, 'sunflower':3, 'tulips':4}
+flower_list = train_dataset.class_to_idx
+cla_dict = dict((val, key) for key, val in flower_list.items())
+# write dict into json file
+json_str = json.dumps(cla_dict, indent=2)
+with open('class_indices.json', 'w') as json_file:
+    json_file.write(json_str)
+
+val_dataset = datasets.ImageFolder(root=os.path.join(image_path, "val"),
+                                            transform=data_transform["val"])

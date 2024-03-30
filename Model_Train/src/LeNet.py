@@ -102,6 +102,6 @@ for i in range(epoch):
     writer.add_scalar("test_loss",total_test_loss,total_test_step)
     writer.add_scalar("test_accurary",total_accuracy/test_data_size,total_test_step)
     total_test_step = total_test_step + 1
-    torch.save(lenet.state_dict(),f"lenet_{i}.pth")
+    torch.save(lenet.state_dict(),f"../pth_save/lenet_{i}.pth")
     print("model_saved")
 writer.close()

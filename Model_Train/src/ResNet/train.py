@@ -1,3 +1,5 @@
+import atexit
+import subprocess
 import time
 import torch
 import torch.nn as nn
@@ -109,5 +111,12 @@ def main():
     print('Finished Training')
     writer.close()
 
+path = '../GoogleNet/GoogLeNet_train.py'
+def run_next_program():
+    subprocess.run(['python', path])  # 第二个函数是下一个程序的位置
+
 if __name__ == '__main__':
     main()
+    atexit.register(run_next_program)
+
+
